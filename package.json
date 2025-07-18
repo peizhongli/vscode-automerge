@@ -16,7 +16,7 @@
     "menus": {
       "explorer/context": [
         {
-          "command": "extension.explorerContext",
+          "command": "extension.createJsxComponent",
           "group": "navigation",
           "when": "explorerResourceIsFolder"
         }
@@ -28,8 +28,8 @@
         "title": "Hello World"
       },
       {
-        "command": "extension.explorerContext",
-        "title": "添加jsx组件"
+        "command": "extension.createJsxComponent",
+        "title": "创建JSX组件"
       }
     ]
   },
