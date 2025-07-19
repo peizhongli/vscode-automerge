@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import * as path from 'path';
 
 const execAsync = promisify(exec);
 
@@ -10,9 +11,11 @@ const execAsync = promisify(exec);
  */
 export class GitBranchManager {
     private outputChannel: vscode.OutputChannel;
+    private workingDirectory: string | undefined;
 
     constructor() {
         this.outputChannel = vscode.window.createOutputChannel('Git Branch Manager');
+        this.workingDirectory = this.getWorkspaceRoot();
     }
 
     /**
@@ -22,6 +25,34 @@ export class GitBranchManager {
         try {
             this.outputChannel.show();
             this.log('🚀 开始自动合并分支...');
+
+            // 检查是否在Git仓库中
+            if (!(await this.isGitRepository())) {
+                const message = '当前工作区不是Git仓库，请在Git项目中使用此功能';
+                this.log(`❌ ${message}`);
+                vscode.window.showErrorMessage(message);
+                return;
+            }
+
+            // 检查工作区是否干净
+            if (!(await this.isWorkingDirectoryClean())) {
+                const message = '工作区有未提交的更改，请先提交或暂存更改后再进行合并操作';
+                this.log(`⚠️ ${message}`);
+                const action = await vscode.window.showWarningMessage(
+                    message,
+                    '查看更改',
+                    '继续操作',
+                    '取消'
+                );
+
+                if (action === '查看更改') {
+                    vscode.commands.executeCommand('git.openChange');
+                    return;
+                } else if (action !== '继续操作') {
+                    this.log('❌ 用户取消操作');
+                    return;
+                }
+            }
 
             // 获取当前分支
             const currentBranch = await this.getCurrentBranch();
@@ -46,7 +77,63 @@ export class GitBranchManager {
 
         } catch (error) {
             this.logError('合并过程中发生错误', error);
-            vscode.window.showErrorMessage(`合并失败: ${error}`);
+
+            // 提供更友好的错误信息
+            let errorMessage = '合并失败';
+            if (error instanceof Error) {
+                if (error.message.includes('not a git repository')) {
+                    errorMessage = '当前目录不是Git仓库，请在Git项目中使用此功能';
+                } else if (error.message.includes('fatal: not a git repository')) {
+                    errorMessage = '请确保在Git仓库的根目录下使用此功能';
+                } else {
+                    errorMessage = `合并失败: ${error.message}`;
+                }
+            }
+
+            vscode.window.showErrorMessage(errorMessage);
+        }
+    }
+
+    /**
+     * 获取工作区根目录
+     */
+    private getWorkspaceRoot(): string | undefined {
+        const workspaceFolders = vscode.workspace.workspaceFolders;
+        if (workspaceFolders && workspaceFolders.length > 0) {
+            return workspaceFolders[0].uri.fsPath;
+        }
+        return undefined;
+    }
+
+    /**
+     * 执行Git命令
+     */
+    private async execGitCommand(command: string): Promise<{ stdout: string; stderr: string }> {
+        const options = this.workingDirectory ? { cwd: this.workingDirectory } : {};
+        return await execAsync(command, options);
+    }
+
+    /**
+     * 检查是否在Git仓库中
+     */
+    private async isGitRepository(): Promise<boolean> {
+        try {
+            await this.execGitCommand('git rev-parse --git-dir');
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
+    /**
+     * 检查工作区是否干净（没有未提交的更改）
+     */
+    private async isWorkingDirectoryClean(): Promise<boolean> {
+        try {
+            const { stdout } = await this.execGitCommand('git status --porcelain');
+            return stdout.trim().length === 0;
+        } catch {
+            return false;
         }
     }
 
@@ -54,7 +141,7 @@ export class GitBranchManager {
      * 获取当前分支
      */
     private async getCurrentBranch(): Promise<string> {
-        const { stdout } = await execAsync('git rev-parse --abbrev-ref HEAD');
+        const { stdout } = await this.execGitCommand('git rev-parse --abbrev-ref HEAD');
         return stdout.trim();
     }
 
@@ -83,7 +170,7 @@ export class GitBranchManager {
      */
     private async getAllBranches(): Promise<string[]> {
         try {
-            const { stdout } = await execAsync('git branch -a');
+            const { stdout } = await this.execGitCommand('git branch -a');
             return stdout
                 .split('\n')
                 .map(branch => branch.replace(/^\*?\s+/, '').replace(/^remotes\/origin\//, ''))
@@ -115,12 +202,12 @@ export class GitBranchManager {
      * 执行合并流程
      */
     private async executeMergeFlow(branchToMerge: string, originalBranch: string): Promise<void> {
-        const progress = await vscode.window.withProgress({
+        await vscode.window.withProgress({
             location: vscode.ProgressLocation.Notification,
             title: '自动合并分支',
             cancellable: false
         }, async (progress) => {
-            
+
             // 步骤1: 切换到目标分支并拉取
             progress.report({ increment: 10, message: `切换到 ${branchToMerge} 分支...` });
             await this.switchAndPullBranch(branchToMerge);
@@ -149,10 +236,10 @@ export class GitBranchManager {
      */
     private async switchAndPullBranch(branch: string): Promise<void> {
         this.log(`🔄 切换到 ${branch} 分支...`);
-        await execAsync(`git checkout ${branch}`);
-        
+        await this.execGitCommand(`git checkout ${branch}`);
+
         this.log(`⬇️ 拉取 ${branch} 分支最新代码...`);
-        await execAsync(`git pull origin ${branch}`);
+        await this.execGitCommand(`git pull origin ${branch}`);
     }
 
     /**
@@ -160,7 +247,7 @@ export class GitBranchManager {
      */
     private async switchToBranch(branch: string): Promise<void> {
         this.log(`🔄 切换到 ${branch} 分支...`);
-        await execAsync(`git checkout ${branch}`);
+        await this.execGitCommand(`git checkout ${branch}`);
     }
 
     /**
@@ -169,23 +256,23 @@ export class GitBranchManager {
     private async mergeToTargetBranch(sourceBranch: string, targetBranch: string): Promise<void> {
         // 切换到目标分支
         await this.switchToBranch(targetBranch);
-        
+
         // 拉取目标分支最新代码
         this.log(`⬇️ 拉取 ${targetBranch} 分支最新代码...`);
-        await execAsync(`git pull origin ${targetBranch}`);
-        
+        await this.execGitCommand(`git pull origin ${targetBranch}`);
+
         // 合并源分支
         this.log(`🔀 合并 ${sourceBranch} 到 ${targetBranch}...`);
-        const mergeResult = await execAsync(`git merge ${sourceBranch}`);
-        
+        await this.execGitCommand(`git merge ${sourceBranch}`);
+
         // 检查是否有冲突
         if (await this.checkMergeConflict()) {
             throw new Error(`合并 ${sourceBranch} 到 ${targetBranch} 时发生冲突，请手动解决`);
         }
-        
+
         // 推送到远程
         this.log(`⬆️ 推送 ${targetBranch} 分支...`);
-        await execAsync(`git push origin ${targetBranch}:${targetBranch}`);
+        await this.execGitCommand(`git push origin ${targetBranch}:${targetBranch}`);
     }
 
     /**
@@ -193,7 +280,7 @@ export class GitBranchManager {
      */
     private async checkMergeConflict(): Promise<boolean> {
         try {
-            const { stdout } = await execAsync('git status --porcelain');
+            const { stdout } = await this.execGitCommand('git status --porcelain');
             return stdout.includes('UU') || stdout.includes('AA') || stdout.includes('DD');
         } catch {
             return false;
