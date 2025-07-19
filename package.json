@@ -43,7 +43,7 @@
       },
       {
         "command": "extension.autoMergeBranch",
-        "title": "🚀 自动合并分支",
+        "title": "🚀 自动合并当前分支到dev和sit",
         "category": "Git"
       },
       {

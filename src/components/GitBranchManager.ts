@@ -58,22 +58,16 @@ export class GitBranchManager {
             const currentBranch = await this.getCurrentBranch();
             this.log(`📍 当前分支: ${currentBranch}`);
 
-            // 让用户选择要合并的分支
-            const branchToMerge = await this.selectBranchToMerge(currentBranch);
-            if (!branchToMerge) {
-                this.log('❌ 用户取消操作');
+            // 检查当前分支是否为dev或sit
+            if (currentBranch === 'dev' || currentBranch === 'sit') {
+                const message = `当前分支是 ${currentBranch}，不能将其合并到自身。请切换到功能分支后再执行合并操作。`;
+                this.log(`⚠️ ${message}`);
+                vscode.window.showWarningMessage(message);
                 return;
             }
 
-            // 确认合并操作
-            const confirmed = await this.confirmMergeOperation(branchToMerge);
-            if (!confirmed) {
-                this.log('❌ 用户取消合并操作');
-                return;
-            }
-
-            // 执行合并流程
-            await this.executeMergeFlow(branchToMerge, currentBranch);
+            // 直接执行合并流程
+            await this.executeMergeFlow(currentBranch, currentBranch);
 
         } catch (error) {
             this.logError('合并过程中发生错误', error);
@@ -145,25 +139,7 @@ export class GitBranchManager {
         return stdout.trim();
     }
 
-    /**
-     * 让用户选择要合并的分支
-     */
-    private async selectBranchToMerge(currentBranch: string): Promise<string | undefined> {
-        const branches = await this.getAllBranches();
-        
-        const items = branches.map(branch => ({
-            label: branch,
-            description: branch === currentBranch ? '(当前分支)' : '',
-            picked: branch === currentBranch
-        }));
 
-        const selected = await vscode.window.showQuickPick(items, {
-            placeHolder: '选择要合并的分支',
-            title: '自动合并分支'
-        });
-
-        return selected?.label;
-    }
 
     /**
      * 获取所有分支
@@ -182,62 +158,73 @@ export class GitBranchManager {
         }
     }
 
-    /**
-     * 确认合并操作
-     */
-    private async confirmMergeOperation(branchToMerge: string): Promise<boolean> {
-        const message = `确认要将分支 "${branchToMerge}" 自动合并到 dev 和 sit 分支吗？\n\n操作流程：\n1. 切换到 ${branchToMerge} 分支并拉取最新代码\n2. 合并到 dev 分支并推送\n3. 合并到 sit 分支并推送\n4. 切换回原分支`;
-        
-        const result = await vscode.window.showWarningMessage(
-            message,
-            { modal: true },
-            '确认合并',
-            '取消'
-        );
 
-        return result === '确认合并';
-    }
 
     /**
      * 执行合并流程
      */
     private async executeMergeFlow(branchToMerge: string, originalBranch: string): Promise<void> {
-        await vscode.window.withProgress({
-            location: vscode.ProgressLocation.Notification,
-            title: '自动合并分支',
-            cancellable: false
-        }, async (progress) => {
+        let isCancelled = false;
 
-            // 步骤1: 切换到目标分支并拉取
-            progress.report({ increment: 10, message: `切换到 ${branchToMerge} 分支...` });
-            await this.switchAndPullBranch(branchToMerge);
+        try {
+            await vscode.window.withProgress({
+                location: vscode.ProgressLocation.Notification,
+                title: '自动合并分支 (点击取消可中止)',
+                cancellable: true
+            }, async (progress, token) => {
 
-            // 步骤2: 合并到dev分支
-            progress.report({ increment: 30, message: '合并到 dev 分支...' });
-            await this.mergeToTargetBranch(branchToMerge, 'dev');
+                // 监听取消事件
+                token.onCancellationRequested(() => {
+                    isCancelled = true;
+                    this.log('⚠️ 用户取消了合并操作');
+                });
 
-            // 步骤3: 合并到sit分支
-            progress.report({ increment: 30, message: '合并到 sit 分支...' });
-            await this.mergeToTargetBranch('dev', 'sit');
+                // 步骤1: 确保当前分支代码是最新的
+                if (token.isCancellationRequested) return;
+                progress.report({ increment: 15, message: `拉取 ${branchToMerge} 分支最新代码...` });
+                await this.pullCurrentBranch(branchToMerge);
 
-            // 步骤4: 切换回原分支
-            progress.report({ increment: 20, message: `切换回 ${originalBranch} 分支...` });
-            await this.switchToBranch(originalBranch);
+                // 步骤2: 合并到dev分支
+                if (token.isCancellationRequested) return;
+                progress.report({ increment: 35, message: '合并到 dev 分支...' });
+                await this.mergeToTargetBranch(branchToMerge, 'dev');
 
-            progress.report({ increment: 10, message: '合并完成!' });
-        });
+                // 步骤3: 合并到sit分支
+                if (token.isCancellationRequested) return;
+                progress.report({ increment: 35, message: '合并到 sit 分支...' });
+                await this.mergeToTargetBranch('dev', 'sit');
 
-        this.log('✅ 自动合并完成!');
-        vscode.window.showInformationMessage('🎉 分支自动合并成功!');
+                // 步骤4: 切换回原分支
+                if (token.isCancellationRequested) return;
+                progress.report({ increment: 15, message: `切换回 ${originalBranch} 分支...` });
+                await this.switchToBranch(originalBranch);
+
+                if (!token.isCancellationRequested) {
+                    progress.report({ message: '合并完成!' });
+                }
+            });
+
+            if (isCancelled) {
+                this.log('❌ 合并操作已取消');
+                vscode.window.showWarningMessage('⚠️ 合并操作已取消');
+            } else {
+                this.log('✅ 自动合并完成!');
+                vscode.window.showInformationMessage('🎉 分支自动合并成功!');
+            }
+        } catch (error) {
+            if (isCancelled) {
+                this.log('❌ 合并操作已取消');
+                vscode.window.showWarningMessage('⚠️ 合并操作已取消');
+            } else {
+                throw error; // 重新抛出非取消相关的错误
+            }
+        }
     }
 
     /**
-     * 切换分支并拉取最新代码
+     * 拉取当前分支最新代码
      */
-    private async switchAndPullBranch(branch: string): Promise<void> {
-        this.log(`🔄 切换到 ${branch} 分支...`);
-        await this.execGitCommand(`git checkout ${branch}`);
-
+    private async pullCurrentBranch(branch: string): Promise<void> {
         this.log(`⬇️ 拉取 ${branch} 分支最新代码...`);
         await this.execGitCommand(`git pull origin ${branch}`);
     }
