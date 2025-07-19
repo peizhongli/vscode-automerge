@@ -1,8 +1,36 @@
 {
-  "name": "chenliwen",
-  "displayName": "chenliwen",
-  "description": "",
-  "version": "0.0.2",
+  "name": "chenliwen-dev-tools",
+  "displayName": "ChenLiwen Dev Tools",
+  "description": "强大的VSCode开发工具扩展，提供JSX组件快速生成和Git分支自动合并功能",
+  "version": "0.1.0",
+  "publisher": "chenliwen",
+  "author": {
+    "name": "chenliwen",
+    "url": "https://github.com/chenliwen123"
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/chenliwen123/VscodeExtension",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/chenliwen123/VscodeExtension.git"
+  },
+  "bugs": {
+    "url": "https://github.com/chenliwen123/VscodeExtension/issues"
+  },
+  "keywords": [
+    "react",
+    "jsx",
+    "component",
+    "git",
+    "merge",
+    "automation",
+    "development",
+    "productivity"
+  ],
+  "categories": [
+    "Other",
+    "Snippets"
+  ],
   "engines": {
     "vscode": "^1.89.0"
   },
@@ -82,6 +110,5 @@
   },
   "dependencies": {
     "clw-cli": "^1.1.8"
-  },
-  "publisher": "chenliwen"
+  }
 }
