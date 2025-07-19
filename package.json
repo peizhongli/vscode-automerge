@@ -20,6 +20,16 @@
           "group": "navigation",
           "when": "explorerResourceIsFolder"
         }
+      ],
+      "commandPalette": [
+        {
+          "command": "extension.autoMergeBranch",
+          "when": "gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "extension.showBranches",
+          "when": "gitOpenRepositoryCount != 0"
+        }
       ]
     },
     "commands": [
@@ -30,6 +40,16 @@
       {
         "command": "extension.createJsxComponent",
         "title": "创建JSX组件"
+      },
+      {
+        "command": "extension.autoMergeBranch",
+        "title": "🚀 自动合并分支",
+        "category": "Git"
+      },
+      {
+        "command": "extension.showBranches",
+        "title": "📋 显示分支信息",
+        "category": "Git"
       }
     ]
   },
