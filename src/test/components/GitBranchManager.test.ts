@@ -65,7 +65,7 @@ suite('GitBranchManager Integration Tests', () => {
     test('autoMergeBranch应该处理非Git仓库', async () => {
         // 这个测试主要验证错误处理
         try {
-            await gitManager.autoMergeBranch();
+            await gitManager.autoMergeBranch({ rootUri: { fsPath: 'nonexistent/path' } });
             // 如果没有抛出错误，说明有适当的错误处理
             assert.ok(true, '应该优雅地处理非Git环境');
         } catch (error) {

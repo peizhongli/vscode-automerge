@@ -2,7 +2,7 @@
   "name": "chenliwen-dev-tools",
   "displayName": "ChenLiwen Dev Tools",
   "description": "强大的VSCode开发工具扩展，提供JSX组件快速生成和Git分支自动合并功能",
-  "version": "0.1.3",
+  "version": "0.1.5",
   "publisher": "chenliwen",
   "author": {
     "name": "chenliwen",
