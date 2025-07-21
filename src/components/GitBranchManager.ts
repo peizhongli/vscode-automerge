@@ -224,7 +224,7 @@ export class GitBranchManager {
     /**
      * 拉取当前分支最新代码
      */
-    private async pullCurrentBranch(branch: string): Promise<void> {
+    private async pullCurrentBranch(branch: string): Promise<void> { //
         this.log(`⬇️ 拉取 ${branch} 分支最新代码...`);
         await this.execGitCommand(`git pull origin ${branch}`);
     }
