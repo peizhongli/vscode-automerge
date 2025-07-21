@@ -141,22 +141,7 @@ export class GitBranchManager {
 
 
 
-    /**
-     * 获取所有分支
-     */
-    private async getAllBranches(): Promise<string[]> {
-        try {
-            const { stdout } = await this.execGitCommand('git branch -a');
-            return stdout
-                .split('\n')
-                .map(branch => branch.replace(/^\*?\s+/, '').replace(/^remotes\/origin\//, ''))
-                .filter(branch => branch && !branch.includes('HEAD'))
-                .filter((branch, index, arr) => arr.indexOf(branch) === index); // 去重
-        } catch (error) {
-            this.logError('获取分支列表失败', error);
-            return [];
-        }
-    }
+
 
 
 
@@ -299,33 +284,10 @@ export class GitBranchManager {
             () => this.autoMergeBranch()
         );
 
-        const showBranchesCommand = vscode.commands.registerCommand(
-            'extension.showBranches',
-            () => this.showBranchInfo()
-        );
-
-        return [autoMergeCommand, showBranchesCommand];
+        return [autoMergeCommand];
     }
 
-    /**
-     * 显示分支信息
-     */
-    private async showBranchInfo(): Promise<void> {
-        try {
-            const currentBranch = await this.getCurrentBranch();
-            const branches = await this.getAllBranches();
-            
-            this.outputChannel.show();
-            this.log('📋 分支信息:');
-            this.log(`当前分支: ${currentBranch}`);
-            this.log('所有分支:');
-            branches.forEach(branch => {
-                this.log(`  - ${branch}${branch === currentBranch ? ' (当前)' : ''}`);
-            });
-        } catch (error) {
-            this.logError('获取分支信息失败', error);
-        }
-    }
+
 
     /**
      * 释放资源

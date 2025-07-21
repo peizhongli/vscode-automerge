@@ -2,7 +2,7 @@
   "name": "chenliwen-dev-tools",
   "displayName": "ChenLiwen Dev Tools",
   "description": "强大的VSCode开发工具扩展，提供JSX组件快速生成和Git分支自动合并功能",
-  "version": "0.1.0",
+  "version": "0.1.3",
   "publisher": "chenliwen",
   "author": {
     "name": "chenliwen",
@@ -47,16 +47,38 @@
           "command": "extension.createJsxComponent",
           "group": "navigation",
           "when": "explorerResourceIsFolder"
+        },
+        {
+          "command": "extension.autoMergeBranch",
+          "group": "7_modification",
+          "when": "gitOpenRepositoryCount != 0"
         }
       ],
       "commandPalette": [
         {
           "command": "extension.autoMergeBranch",
           "when": "gitOpenRepositoryCount != 0"
-        },
+        }
+      ],
+      "scm/title": [
         {
-          "command": "extension.showBranches",
-          "when": "gitOpenRepositoryCount != 0"
+          "command": "extension.autoMergeBranch",
+          "group": "navigation",
+          "when": "scmProvider == git"
+        }
+      ],
+      "scm/resourceGroup/context": [
+        {
+          "command": "extension.autoMergeBranch",
+          "group": "1_modification",
+          "when": "scmProvider == git"
+        }
+      ],
+      "scm/resourceState/context": [
+        {
+          "command": "extension.autoMergeBranch",
+          "group": "1_modification",
+          "when": "scmProvider == git"
         }
       ]
     },
@@ -72,12 +94,8 @@
       {
         "command": "extension.autoMergeBranch",
         "title": "🚀 自动合并当前分支到dev和sit",
-        "category": "Git"
-      },
-      {
-        "command": "extension.showBranches",
-        "title": "📋 显示分支信息",
-        "category": "Git"
+        "category": "Git",
+        "icon": "$(git-merge)"
       }
     ]
   },

@@ -30,13 +30,13 @@ suite('GitBranchManager Test Suite', () => {
 
     test('registerCommands应该返回正确数量的命令', () => {
         const commands = gitManager.registerCommands();
-        assert.strictEqual(commands.length, 2, '应该注册2个Git命令');
-        
+        assert.strictEqual(commands.length, 1, '应该注册1个Git命令');
+
         // 验证命令是Disposable
         commands.forEach(cmd => {
             assert.ok(cmd.dispose, '每个命令都应该是Disposable');
         });
-        
+
         // 清理
         commands.forEach(cmd => cmd.dispose());
     });
@@ -82,11 +82,6 @@ suite('GitBranchManager Integration Tests', () => {
         assert.ok(
             allCommands.includes('extension.autoMergeBranch'),
             'autoMergeBranch命令应该被注册'
-        );
-        
-        assert.ok(
-            allCommands.includes('extension.showBranches'),
-            'showBranches命令应该被注册'
         );
     });
 });
