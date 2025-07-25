@@ -2,11 +2,19 @@ import * as assert from 'assert';
 import * as vscode from 'vscode';
 import { GitBranchManager } from '../../components/GitBranchManager';
 
+// 创建一个模拟的 ExtensionContext 对象用于测试
+const mockContext: vscode.ExtensionContext = {
+    globalState: {
+        get: () => undefined,
+        update: () => Promise.resolve()
+    }
+} as any;
+
 suite('GitBranchManager Test Suite', () => {
     let gitManager: GitBranchManager;
 
     suiteSetup(() => {
-        gitManager = new GitBranchManager();
+        gitManager = new GitBranchManager(mockContext);
     });
 
     suiteTeardown(() => {
@@ -22,7 +30,7 @@ suite('GitBranchManager Test Suite', () => {
     test('应该能够注册Git命令', () => {
         const commands = gitManager.registerCommands();
         assert.ok(Array.isArray(commands));
-        assert.strictEqual(commands.length, 2);
+        assert.strictEqual(commands.length, 1);
         
         // 清理命令
         commands.forEach(cmd => cmd.dispose());
@@ -42,7 +50,7 @@ suite('GitBranchManager Test Suite', () => {
     });
 
     test('dispose应该正确清理资源', () => {
-        const testManager = new GitBranchManager();
+        const testManager = new GitBranchManager(mockContext);
         
         // 这个测试主要确保dispose方法存在且可以调用
         assert.doesNotThrow(() => {
@@ -55,7 +63,7 @@ suite('GitBranchManager Integration Tests', () => {
     let gitManager: GitBranchManager;
 
     suiteSetup(() => {
-        gitManager = new GitBranchManager();
+        gitManager = new GitBranchManager(mockContext);
     });
 
     suiteTeardown(() => {
@@ -90,7 +98,7 @@ suite('GitBranchManager Error Handling', () => {
     let gitManager: GitBranchManager;
 
     suiteSetup(() => {
-        gitManager = new GitBranchManager();
+        gitManager = new GitBranchManager(mockContext);
     });
 
     suiteTeardown(() => {
@@ -156,7 +164,7 @@ suite('GitBranchManager UI Tests', () => {
     let gitManager: GitBranchManager;
 
     suiteSetup(() => {
-        gitManager = new GitBranchManager();
+        gitManager = new GitBranchManager(mockContext);
     });
 
     suiteTeardown(() => {

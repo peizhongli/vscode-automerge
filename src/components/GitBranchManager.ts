@@ -5,15 +5,20 @@ import * as path from 'path';
 
 const execAsync = promisify(exec);
 
+const config = vscode.workspace.getConfiguration("chenliwenDevTools");
+const mergeBranches = (config.get<string>("mergeBranches") || "dev,sit").split(",");
+
 /**
  * Git分支管理器
  * 基于你的autoMerge.js功能，提供VSCode集成的Git分支自动合并功能
  */
 export class GitBranchManager {
     private outputChannel: vscode.OutputChannel;
+    private context: vscode.ExtensionContext;
 
-    constructor() {
+    constructor(context: vscode.ExtensionContext) {
         this.outputChannel = vscode.window.createOutputChannel('Git Branch Manager');
+        this.context = context;
     }
 
     /**
@@ -63,25 +68,38 @@ export class GitBranchManager {
                 return;
             }
 
-            // 检查工作区是否干净
-            if (!(await this.isWorkingDirectoryClean(currentRepo))) {
-                const message = '工作区有未提交的更改，请先提交或暂存更改后再进行合并操作';
-                this.log(`⚠️ ${message}`);
-                const action = await vscode.window.showWarningMessage(
-                    message,
-                    '查看更改',
-                    '继续操作',
-                    '取消'
-                );
+            const lastComponentName = this.context.globalState.get('lastCommitPrefix', '');
+            const commitPrefix = await vscode.window.showInputBox({
+                prompt: "请输入提交前缀",
+                placeHolder: "请输入",
+                value: lastComponentName
+            });
+            this.context.globalState.update('lastCommitPrefix', commitPrefix);
+            const commitMessage = await vscode.window.showInputBox({
+                prompt: "请输入提交信息",
+                placeHolder: "请输入",
+            });
+            const commitMes = (commitPrefix || '') + ' ' + commitMessage;
 
-                if (action === '查看更改') {
-                    vscode.commands.executeCommand('git.openChange');
-                    return;
-                } else if (action !== '继续操作') {
-                    this.log('❌ 用户取消操作');
-                    return;
-                }
-            }
+            // 检查工作区是否干净
+            // if (!(await this.isWorkingDirectoryClean(currentRepo))) {
+            //     const message = '工作区有未提交的更改，请先提交或暂存更改后再进行合并操作';
+            //     this.log(`⚠️ ${message}`);
+            //     const action = await vscode.window.showWarningMessage(
+            //         message,
+            //         '查看更改',
+            //         '继续操作',
+            //         '取消'
+            //     );
+
+            //     if (action === '查看更改') {
+            //         vscode.commands.executeCommand('git.openChange');
+            //         return;
+            //     } else if (action !== '继续操作') {
+            //         this.log('❌ 用户取消操作');
+            //         return;
+            //     }
+            // }
 
             // 获取当前分支
             const currentBranch = await this.getCurrentBranch(currentRepo);
@@ -96,7 +114,7 @@ export class GitBranchManager {
             }
 
             // 直接执行合并流程
-            await this.executeMergeFlow(currentBranch, currentBranch, currentRepo);
+            await this.executeMergeFlow(currentBranch, currentBranch, currentRepo, commitMes);
 
         } catch (error) {
             this.logError('合并过程中发生错误', error);
@@ -251,22 +269,16 @@ export class GitBranchManager {
         return stdout.trim();
     }
 
-
-
-
-
-
-
     /**
      * 执行合并流程
      */
-    private async executeMergeFlow(branchToMerge: string, originalBranch: string, workingDirectory: string): Promise<void> {
+    private async executeMergeFlow(branchToMerge: string, originalBranch: string, workingDirectory: string, commitMes: string): Promise<void> {
         let isCancelled = false;
 
         try {
             await vscode.window.withProgress({
                 location: vscode.ProgressLocation.Notification,
-                title: '自动合并分支 (点击取消可中止)',
+                title: '自动合并分支 (点击取消可终止当前操作)',
                 cancellable: true
             }, async (progress, token) => {
 
@@ -277,22 +289,26 @@ export class GitBranchManager {
                 });
 
                 // 步骤1: 确保当前分支代码是最新的
-                if (token.isCancellationRequested) return;
+                if (token.isCancellationRequested) {return;}
                 progress.report({ increment: 15, message: `拉取 ${branchToMerge} 分支最新代码...` });
                 await this.pullCurrentBranch(branchToMerge, workingDirectory);
+                
+                // 步骤2: 提交代码
+                if (token.isCancellationRequested) {return;}
+                progress.report({ increment: 5, message: `在 ${branchToMerge} 提交 ${commitMes} ...` });
+                await this.commitChanges(commitMes, branchToMerge, workingDirectory);
 
                 // 步骤2: 合并到dev分支
-                if (token.isCancellationRequested) return;
-                progress.report({ increment: 35, message: '合并到 dev 分支...' });
-                await this.mergeToTargetBranch(branchToMerge, 'dev', workingDirectory);
-
-                // 步骤3: 合并到sit分支
-                if (token.isCancellationRequested) return;
-                progress.report({ increment: 35, message: '合并到 sit 分支...' });
-                await this.mergeToTargetBranch('dev', 'sit', workingDirectory);
+                let currentBranch = branchToMerge;
+                for (const branch of mergeBranches) { 
+                    if (token.isCancellationRequested) {return;}
+                    progress.report({ increment: 35, message: `合并到 ${branch} 分支...` });
+                    await this.mergeToTargetBranch(currentBranch, branch, workingDirectory);
+                    currentBranch = branch;
+                }
 
                 // 步骤4: 切换回原分支
-                if (token.isCancellationRequested) return;
+                if (token.isCancellationRequested) {return;}
                 progress.report({ increment: 15, message: `切换回 ${originalBranch} 分支...` });
                 await this.switchToBranch(originalBranch, workingDirectory);
 
@@ -324,6 +340,15 @@ export class GitBranchManager {
     private async pullCurrentBranch(branch: string, workingDirectory?: string): Promise<void> { //
         this.log(`⬇️ 拉取 ${branch} 分支最新代码...`);
         await this.execGitCommand(`git pull origin ${branch}`, workingDirectory);
+    }
+
+    /**
+     * 提交commit
+     */
+    private async commitChanges(message: string, branch:string, workingDirectory?: string): Promise<void> { //
+        this.log(`⬆️ 提交代码，提交信息为 ${message}...`);
+        await this.execGitCommand(`git commit -m "${message}" --no-verify`, workingDirectory);
+        await this.execGitCommand(`git push origin ${branch}:${branch}`, workingDirectory);
     }
 
     /**

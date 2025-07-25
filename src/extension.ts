@@ -18,7 +18,7 @@ export function activate(context: vscode.ExtensionContext) {
     const jsxComponentCommand = jsxGenerator.registerCommand();
 
     // Git分支管理器
-    const gitBranchManager = new GitBranchManager();
+    const gitBranchManager = new GitBranchManager(context);
     const gitCommands = gitBranchManager.registerCommands();
 
     // 注册所有命令

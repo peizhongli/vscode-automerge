@@ -35,6 +35,16 @@
     "vscode": "^1.89.0"
   },
   "contributes": {
+    "configuration": {
+      "title": "ChenLiwen Dev Tools branch config",
+      "properties": {
+        "chenliwenDevTools.mergeBranches": {
+          "type": "string",
+          "description": "需要合并的分支，支持多个分支，请按序用英文逗号分隔",
+          "default": "dev,sit"
+        }
+      }
+    },
     "snippets": [
       {
         "language": "javascript",
@@ -93,7 +103,7 @@
       },
       {
         "command": "extension.autoMergeBranch",
-        "title": "🚀 自动合并当前分支到dev和sit",
+        "title": "🚀 自动提交并合并分支",
         "category": "Git",
         "icon": "$(git-merge)"
       }
@@ -110,7 +120,8 @@
     "watch-tests": "tsc -p . -w --outDir out",
     "pretest": "npm run compile-tests && npm run compile && npm run lint",
     "lint": "eslint src",
-    "test": "vscode-test"
+    "test": "vscode-test",
+    "vpackage": "vsce package"
   },
   "devDependencies": {
     "@types/vscode": "^1.89.0",
