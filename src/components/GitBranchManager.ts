@@ -22,7 +22,7 @@ export class GitBranchManager {
     }
 
     /**
-     * 自动合并分支到dev和sit
+     * 自动合并分支
      */
     async autoMergeBranch(e: any = { rootUri: { fsPath: '' } }): Promise<void> {
         try {
@@ -68,18 +68,26 @@ export class GitBranchManager {
                 return;
             }
 
-            const lastComponentName = this.context.globalState.get('lastCommitPrefix', '');
-            const commitPrefix = await vscode.window.showInputBox({
-                prompt: "请输入提交前缀",
-                placeHolder: "请输入",
-                value: lastComponentName
-            });
-            this.context.globalState.update('lastCommitPrefix', commitPrefix);
-            const commitMessage = await vscode.window.showInputBox({
-                prompt: "请输入提交信息",
-                placeHolder: "请输入",
-            });
-            const commitMes = (commitPrefix || '') + ' ' + commitMessage;
+            // 检查暂存区是否有文件
+            let commitMes = '';
+            const { stdout: stagedFiles } = await this.execGitCommand('git diff --cached --name-only', currentRepo);
+            if (stagedFiles.trim().length > 0) {
+                const lastComponentName = this.context.globalState.get('lastCommitPrefix', '');
+                const commitPrefix = await vscode.window.showInputBox({
+                    prompt: "请输入提交前缀",
+                    placeHolder: "请输入",
+                    value: lastComponentName
+                });
+                if (commitPrefix) {
+                    commitMes += `${commitPrefix}: `;
+                }
+                this.context.globalState.update('lastCommitPrefix', commitPrefix);
+                const commitMessage = await vscode.window.showInputBox({
+                    prompt: "请输入提交信息",
+                    placeHolder: "请输入",
+                });
+                commitMes += commitMessage;
+            }
 
             // 检查工作区是否干净
             // if (!(await this.isWorkingDirectoryClean(currentRepo))) {
@@ -293,10 +301,14 @@ export class GitBranchManager {
                 progress.report({ increment: 15, message: `拉取 ${branchToMerge} 分支最新代码...` });
                 await this.pullCurrentBranch(branchToMerge, workingDirectory);
                 
-                // 步骤2: 提交代码
-                if (token.isCancellationRequested) {return;}
-                progress.report({ increment: 5, message: `在 ${branchToMerge} 提交 ${commitMes} ...` });
-                await this.commitChanges(commitMes, branchToMerge, workingDirectory);
+                // 检查暂存区是否有文件
+                const { stdout: stagedFiles } = await this.execGitCommand('git diff --cached --name-only', workingDirectory);
+                if (stagedFiles.trim().length > 0) {
+                    // 步骤2: 提交代码
+                    if (token.isCancellationRequested) {return;}
+                    progress.report({ increment: 5, message: `在 ${branchToMerge} 提交 ${commitMes} ...` });
+                    await this.commitChanges(commitMes, branchToMerge, workingDirectory);
+                }
 
                 // 步骤2: 合并到dev分支
                 let currentBranch = branchToMerge;
